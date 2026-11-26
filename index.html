@@ -54,7 +54,8 @@ details{background:var(--card);border:1px solid var(--ln);border-radius:10px;pad
 <input id="fy" type="number" placeholder="Ano (opcional)" inputmode="numeric"><input id="fg" placeholder="Gravadora (opcional)">
 <input id="fs" class="w" placeholder="Estilo (opcional, ex.: Indie rock / Emo)">
 <button class="pri w" id="ad">Adicionar</button></div>
-<p class="m">Ano, estilo e capa são buscados automaticamente no MusicBrainz quando você não preenche.</p></details>
+<p class="m">Ano, estilo e capa são buscados automaticamente no MusicBrainz quando você não preenche.</p>
+<p><button id="fc">Buscar capas que faltam</button></p></details>
 <div class="row"><input id="q" type="search" placeholder="Buscar…" style="flex:2"><select id="so"><option value="artist">Artista A–Z</option><option value="album">Álbum A–Z</option><option value="year">Ano ↑</option><option value="yeard">Ano ↓</option></select></div>
 <div class="chips" id="ch"></div>
 <div class="grid" id="ls"></div>
@@ -112,7 +113,7 @@ function detail(){
   if(!d){sel=null;$('#dt').hidden=true;$('#lv').hidden=false;return}
   $('#dt').hidden=false;$('#lv').hidden=true;
   const f=(k,l,t='text')=>`<label class="m">${l}<input data-f="${k}" type="${t}" value="${esc(d[k])}"></label>`;
-  $('#pn').innerHTML=cv(d)+f('artist','Artista')+f('album','Álbum')+f('year','Ano','number')+f('label','Gravadora')+f('styles','Estilo (separe com /)')+f('cover_url','Link da capa (https)')+
+  $('#pn').innerHTML=cv(d)+(d.summary?`<div class="m" style="margin:8px 0"><b>Resumo da crítica</b><br>${esc(d.summary)}</div>`:'')+f('artist','Artista')+f('album','Álbum')+f('year','Ano','number')+f('label','Gravadora')+f('styles','Estilo (separe com /)')+f('cover_url','Link da capa (https)')+
    `<label class="m">Minha review<textarea data-f="review" rows="6" placeholder="Escreva sua opinião sobre este disco…">${esc(d.review)}</textarea></label>`+
    `<div class="acts"><button class="pri" data-a="save">Salvar</button><button class="del" data-a="del">${armed?'Confirmar remoção':'Remover'}</button></div>`;
 }
@@ -150,6 +151,28 @@ $('#ad').onclick=async()=>{
   rows.push(data);['#fa','#fb','#fy','#fg','#fs'].forEach(s=>$(s).value='');render();
   toast(f?'Disco adicionado.':'Adicionado. Não achei dados automáticos, edite no disco se quiser.');
 };
+async function fillCovers(){
+  const todo=rows.filter(d=>!d.cover_url);
+  if(!todo.length){toast('Todos os discos já têm capa.');return}
+  const b=$('#fc');b.disabled=true;let ok=0;
+  for(let i=0;i<todo.length;i++){
+    b.textContent=`Buscando capas… ${i+1}/${todo.length}`;
+    try{
+      const f=await lookup(todo[i].artist,todo[i].album);
+      if(f){
+        const u={cover_url:f.cover,mbid:f.mbid};
+        if(!todo[i].year&&f.year)u.year=f.year;
+        if(!todo[i].styles&&f.styles)u.styles=f.styles;
+        const {error}=await sb.from('discs').update(u).eq('id',todo[i].id);
+        if(!error){Object.assign(todo[i],u);ok++}
+      }
+    }catch(x){}
+    await new Promise(r=>setTimeout(r,1100));
+  }
+  b.disabled=false;b.textContent='Buscar capas que faltam';render();
+  toast(`Capas encontradas: ${ok} de ${todo.length}.`);
+}
+$('#fc').onclick=fillCovers;
 async function authDo(kind){
   const email=$('#em').value.trim(),password=$('#pw').value;$('#am').textContent='';
   const r=kind==='in'?await sb.auth.signInWithPassword({email,password}):await sb.auth.signUp({email,password});
