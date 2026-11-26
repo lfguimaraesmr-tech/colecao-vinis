@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minha coleção de vinis</title>
+<style>
+:root{--bg:#faf7f2;--card:#fff;--tx:#1f2328;--mut:#6b7280;--ac:#9a3412;--ln:#e7e1d8;--chip:#efe9df;--on:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#17140f;--card:#211d17;--tx:#f1ece4;--mut:#a39b8f;--ac:#f59e6c;--ln:#3a342b;--chip:#2e2820;--on:#17140f}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px}
+h1{font:600 22px Georgia,serif;margin:4px 0 2px}.sub,.m{color:var(--mut)}.m{font-size:13px}.sub{margin:0 0 14px}
+input,select,button,textarea{font:inherit;color:inherit;background:var(--card);border:1px solid var(--ln);border-radius:8px;padding:9px 10px;max-width:100%}
+textarea{width:100%;resize:vertical}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.row{display:flex;gap:8px;margin-bottom:10px}.row>*{flex:1;min-width:0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px}
+.chip{flex:none;border-radius:99px;background:var(--chip);padding:5px 12px;cursor:pointer;border:0;white-space:nowrap}.chip.on{background:var(--ac);color:var(--on)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px 12px}
+.tile{cursor:pointer;min-width:0}
+.cv{position:relative;display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1;border-radius:6px;background:var(--chip);color:var(--mut);font:600 40px Georgia,serif;box-shadow:0 2px 8px rgba(0,0,0,.25);overflow:hidden}
+.cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.tile .t{font-weight:600;margin-top:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile .m{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+details{background:var(--card);border:1px solid var(--ln);border-radius:10px;padding:10px 12px;margin-bottom:12px}summary{cursor:pointer;font-weight:600}
+.add{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.add .w{grid-column:1/-1}
+.pri{background:var(--ac);color:var(--on);border:0;font-weight:600;cursor:pointer}
+.msg{grid-column:1/-1;color:var(--mut);text-align:center;padding:24px 0}
+.ts{background:var(--tx);color:var(--bg);padding:10px 14px;border-radius:10px;margin:0 0 12px;text-align:center}
+.pn{max-width:460px;margin:0 auto}.pn .cv{max-width:300px;margin:0 auto 12px;font-size:72px}
+.pn label{display:block;margin-top:8px}.pn input{width:100%}
+.acts{display:flex;gap:8px;margin-top:12px}.acts button{flex:1;cursor:pointer}.del{color:#dc2626}
+#auth{max-width:380px;margin:40px auto}
+</style>
+</head>
+<body>
+<main>
+<div id="auth" hidden>
+<h1>Minha coleção de vinis</h1>
+<p class="sub">Entre para ver e organizar a sua coleção.</p>
+<div class="add"><input id="em" type="email" placeholder="E-mail" class="w" autocomplete="email"><input id="pw" type="password" placeholder="Senha (mínimo 6 caracteres)" class="w" autocomplete="current-password"><button class="pri" id="si">Entrar</button><button id="su">Criar conta</button></div>
+<p class="m" id="am"></p>
+</div>
+<div id="app" hidden>
+<div class="top"><h1>Minha coleção</h1><button id="out">Sair</button></div>
+<p class="sub" id="cnt"></p>
+<div class="ts" id="ts" hidden></div>
+<div id="dt" hidden><button id="bk">← Voltar à biblioteca</button><div class="pn" id="pn"></div></div>
+<div id="lv">
+<details><summary>＋ Adicionar disco</summary><div class="add">
+<input id="fa" placeholder="Artista" class="w"><input id="fb" placeholder="Álbum" class="w">
+<input id="fy" type="number" placeholder="Ano (opcional)" inputmode="numeric"><input id="fg" placeholder="Gravadora (opcional)">
+<input id="fs" class="w" placeholder="Estilo (opcional, ex.: Indie rock / Emo)">
+<button class="pri w" id="ad">Adicionar</button></div>
+<p class="m">Ano, estilo e capa são buscados automaticamente no MusicBrainz quando você não preenche.</p></details>
+<div class="row"><input id="q" type="search" placeholder="Buscar…" style="flex:2"><select id="so"><option value="artist">Artista A–Z</option><option value="album">Álbum A–Z</option><option value="year">Ano ↑</option><option value="yeard">Ano ↓</option></select></div>
+<div class="chips" id="ch"></div>
+<div class="grid" id="ls"></div>
+</div>
+</div>
+</main>
+<script type="module">
+import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
+const sb=createClient('__SUPABASE_URL__','__SUPABASE_ANON_KEY__');
+const $=s=>document.querySelector(s);
+let rows=[],q='',sty='',so='artist',sel=null,armed=false,started=false;
+const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^the\s+/,'');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const styles=d=>String(d.styles||'').split('/').map(x=>x.trim()).filter(Boolean);
+const safe=u=>/^https:\/\//i.test(u||'')?u:'';
+const err=e=>(e&&(e.message||e.code))||'erro';
+function toast(m){const e=$('#ts');e.textContent=m;e.hidden=false;try{e.scrollIntoView({block:'nearest'})}catch(x){}clearTimeout(toast.t);toast.t=setTimeout(()=>e.hidden=true,4500)}
+const cv=d=>{const u=safe(d.cover_url);return `<div class="cv"><span>${esc((d.album||'?').charAt(0).toUpperCase())}</span>${u?`<img src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()">`:''}</div>`};
+
+async function lookup(a,b){
+  const lq=s=>String(s).replace(/(["\\])/g,'\\$1');
+  const r=await fetch('https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=1&query='+encodeURIComponent(`releasegroup:"${lq(b)}" AND artist:"${lq(a)}"`));
+  const g=((await r.json())['release-groups']||[])[0];
+  if(!g||g.score<90)return null;
+  const tags=(g.tags||[]).slice().sort((x,y)=>y.count-x.count).slice(0,3).map(t=>t.name);
+  return {mbid:g.id,year:parseInt(g['first-release-date'])||null,styles:tags.join(' / '),cover:`https://coverartarchive.org/release-group/${g.id}/front-500`};
+}
+async function load(){
+  const {data,error}=await sb.from('discs').select('*').order('artist');
+  if(error){toast('Não foi possível carregar: '+err(error));return}
+  rows=data;render();
+}
+function render(){
+  const all={};rows.forEach(d=>styles(d).forEach(s=>all[s]=(all[s]||0)+1));
+  const names=Object.keys(all).sort((a,b)=>a.localeCompare(b,'pt'));
+  $('#ch').innerHTML=`<button class="chip${sty?'':' on'}" data-s="">Todos (${rows.length})</button>`+names.map(n=>`<button class="chip${sty===n?' on':''}" data-s="${esc(n)}">${esc(n)} (${all[n]})</button>`).join('');
+  const nq=norm(q);
+  const list=rows.filter(d=>(!sty||styles(d).includes(sty))&&(!nq||norm([d.artist,d.album,d.label,d.styles].join(' ')).includes(nq)));
+  list.sort((a,b)=>{
+    if(so==='album')return norm(a.album).localeCompare(norm(b.album),'pt');
+    if(so==='year'||so==='yeard'){const r=((a.year||0)-(b.year||0))*(so==='yeard'?-1:1);return r||norm(a.artist).localeCompare(norm(b.artist),'pt')}
+    return norm(a.artist).localeCompare(norm(b.artist),'pt')||(a.year||0)-(b.year||0)});
+  $('#cnt').textContent=rows.length+(rows.length===1?' disco':' discos')+(list.length!==rows.length?` · ${list.length} no filtro`:'');
+  $('#ls').innerHTML=list.length?list.map(d=>`<div class="tile" data-id="${esc(d.id)}">${cv(d)}<div class="t">${esc(d.album)}</div><div class="m">${esc(d.artist)}</div>${d.year?`<div class="m">${d.year}</div>`:''}</div>`).join(''):`<div class="msg">${rows.length?'Nenhum disco por aqui.':'Sua coleção está vazia. Adicione o primeiro disco acima.'}</div>`;
+  detail();
+}
+function detail(){
+  const d=sel&&rows.find(x=>x.id===sel);
+  if(!d){sel=null;$('#dt').hidden=true;$('#lv').hidden=false;return}
+  $('#dt').hidden=false;$('#lv').hidden=true;
+  const f=(k,l,t='text')=>`<label class="m">${l}<input data-f="${k}" type="${t}" value="${esc(d[k])}"></label>`;
+  $('#pn').innerHTML=cv(d)+f('artist','Artista')+f('album','Álbum')+f('year','Ano','number')+f('label','Gravadora')+f('styles','Estilo (separe com /)')+f('cover_url','Link da capa (https)')+
+   `<label class="m">Minha review<textarea data-f="review" rows="6" placeholder="Escreva sua opinião sobre este disco…">${esc(d.review)}</textarea></label>`+
+   `<div class="acts"><button class="pri" data-a="save">Salvar</button><button class="del" data-a="del">${armed?'Confirmar remoção':'Remover'}</button></div>`;
+}
+const back=()=>{const id=sel;sel=null;armed=false;detail();try{document.querySelector(`.tile[data-id="${id}"]`)?.scrollIntoView({block:'center'})}catch(x){}};
+$('#ch').onclick=e=>{const b=e.target.closest('.chip');if(b){sty=b.dataset.s;render()}};
+$('#q').oninput=e=>{q=e.target.value;render()};
+$('#so').onchange=e=>{so=e.target.value;render()};
+$('#ls').onclick=e=>{const t=e.target.closest('.tile');if(t){sel=t.dataset.id;armed=false;detail();window.scrollTo(0,0)}};
+$('#bk').onclick=back;
+$('#pn').onclick=async e=>{
+  const b=e.target.closest('button');if(!b)return;const d=rows.find(x=>x.id===sel);if(!d)return;
+  if(b.dataset.a==='save'){
+    const u={};document.querySelectorAll('#pn [data-f]').forEach(i=>u[i.dataset.f]=i.value.trim());
+    if(!u.artist||!u.album){toast('Artista e álbum são obrigatórios.');return}
+    u.year=parseInt(u.year)||null;u.cover_url=safe(u.cover_url)||null;
+    const {error}=await sb.from('discs').update(u).eq('id',sel);
+    if(error)toast('Não foi possível salvar: '+err(error));else{Object.assign(d,u);toast('Salvo.');render()}
+  }else if(b.dataset.a==='del'){
+    if(!armed){armed=true;detail();return}
+    const {error}=await sb.from('discs').delete().eq('id',sel);
+    armed=false;
+    if(error){toast('Não foi possível remover: '+err(error));detail()}else{rows=rows.filter(x=>x.id!==sel);sel=null;render()}
+  }
+};
+$('#ad').onclick=async()=>{
+  const a=$('#fa').value.trim(),b=$('#fb').value.trim();
+  if(!a||!b){toast('Preencha artista e álbum.');return}
+  const btn=$('#ad');btn.disabled=true;btn.textContent='Adicionando…';
+  let f=null;try{f=await lookup(a,b)}catch(x){}
+  const y=parseInt($('#fy').value)||null;
+  const row={artist:a,album:b,year:y||f?.year||null,label:$('#fg').value.trim()||null,styles:$('#fs').value.trim()||f?.styles||null,cover_url:f?.cover||null,mbid:f?.mbid||null};
+  const {data,error}=await sb.from('discs').insert(row).select().single();
+  btn.disabled=false;btn.textContent='Adicionar';
+  if(error){toast('Não foi possível adicionar: '+err(error));return}
+  rows.push(data);['#fa','#fb','#fy','#fg','#fs'].forEach(s=>$(s).value='');render();
+  toast(f?'Disco adicionado.':'Adicionado. Não achei dados automáticos, edite no disco se quiser.');
+};
+async function authDo(kind){
+  const email=$('#em').value.trim(),password=$('#pw').value;$('#am').textContent='';
+  const r=kind==='in'?await sb.auth.signInWithPassword({email,password}):await sb.auth.signUp({email,password});
+  if(r.error)$('#am').textContent=r.error.message;
+  else if(kind==='up'&&!r.data.session)$('#am').textContent='Conta criada. Confirme pelo e-mail que enviamos e depois entre.';
+}
+$('#si').onclick=()=>authDo('in');$('#su').onclick=()=>authDo('up');
+$('#out').onclick=()=>sb.auth.signOut();
+sb.auth.onAuthStateChange((_e,s)=>{
+  if(s){$('#auth').hidden=true;$('#app').hidden=false;if(!started){started=true;load()}}
+  else{started=false;rows=[];sel=null;$('#app').hidden=true;$('#auth').hidden=false}
+});
+</script>
+</body>
+</html>
