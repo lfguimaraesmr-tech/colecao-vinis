@@ -36,6 +36,7 @@ details{background:var(--card);border:1px solid var(--ln);border-radius:10px;pad
 </head>
 <body>
 <main>
+<p class="m" id="st">Carregando…</p>
 <div id="auth" hidden>
 <h1>Minha coleção de vinis</h1>
 <p class="sub">Entre para ver e organizar a sua coleção.</p>
@@ -60,9 +61,15 @@ details{background:var(--card);border:1px solid var(--ln);border-radius:10px;pad
 </div>
 </div>
 </main>
+<script>
+window.onerror=function(m){var e=document.getElementById('st');if(e){e.hidden=false;e.textContent='Erro: '+m}};
+window.onunhandledrejection=function(ev){var e=document.getElementById('st');if(e){e.hidden=false;e.textContent='Erro: '+((ev.reason&&ev.reason.message)||ev.reason)}};
+</script>
 <script type="module">
-import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
-const sb=createClient('__SUPABASE_URL__','__SUPABASE_ANON_KEY__');
+let createClient;
+try{({createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm'))}
+catch(e){const st=document.getElementById('st');st.textContent='Não foi possível carregar a biblioteca de login (a rede pode estar bloqueando cdn.jsdelivr.net): '+e.message;throw e}
+const sb=createClient('https://bbtrrvbdtccllwnafhhy.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJidHJydmJkdGNjbGx3bmFmaGh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2NTk1NjcsImV4cCI6MjExMTIzNTU2N30.KGWOf_QPhJd8cjlCj_VBrjjDoRFp04dEYMCmIfnSadQ');
 const $=s=>document.querySelector(s);
 let rows=[],q='',sty='',so='artist',sel=null,armed=false,started=false;
 const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^the\s+/,'');
@@ -151,9 +158,12 @@ async function authDo(kind){
 }
 $('#si').onclick=()=>authDo('in');$('#su').onclick=()=>authDo('up');
 $('#out').onclick=()=>sb.auth.signOut();
+const showAuth=()=>{$('#st').hidden=true;$('#app').hidden=true;$('#auth').hidden=false};
+setTimeout(()=>{if($('#auth').hidden&&$('#app').hidden)showAuth()},4000);
 sb.auth.onAuthStateChange((_e,s)=>{
+  $('#st').hidden=true;
   if(s){$('#auth').hidden=true;$('#app').hidden=false;if(!started){started=true;load()}}
-  else{started=false;rows=[];sel=null;$('#app').hidden=true;$('#auth').hidden=false}
+  else{started=false;rows=[];sel=null;showAuth()}
 });
 </script>
 </body>
